@@ -6,4 +6,7 @@ from .views import *
 urlpatterns = [
     path('books/', BookManagementView.as_view(), name='book-create'),
     #path('books/?available=true', BookManagementView.as_view(), name='book-create'),
+
+    path('borrow/', BorrowView.as_view(), name='borrow-book'),
+
 ]
