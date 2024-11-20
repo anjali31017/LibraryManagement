@@ -3,7 +3,7 @@ from django.db import models
 # Create your models here.
 
 
-class book(models.Model):
+class books(models.Model):
     book_id = models.AutoField(primary_key=True)
     book_name = models.CharField(max_length=30)
     author = models.CharField(max_length=30)
@@ -13,4 +13,4 @@ class book(models.Model):
         return self.book_name
     
     class Meta:
-        db_table = "book"
+        db_table = "books"

@@ -18,7 +18,7 @@ class BookManagementView(APIView):
         }
         #optional : add validation & check already exists
         try:
-            new_book = book.objects.create(**book_details)
+            new_book = books.objects.create(**book_details)
             #new_book_1 = book.objects.create(book_details)
             print(new_book)
             #print(new_book_1)
@@ -34,20 +34,39 @@ class BookManagementView(APIView):
             })
     
     def get(self,request):
-        book_data = book.objects.all()
-        #book_data_values = book_data.values()
-        book_data_values = list(book_data.values())
-        print(book_data)
-        print(book_data_values)
+        try:
+            available_param = request.query_params.get('available', None)
+            #print(available_param)
+            book_data = books.objects.all()
 
-        # data = list(book_data)
-        # print(book_data)
-        # print(list(book_data))
-        return Response({
-            #book_data_values
-            #data
-            "status" : 200,
-            "message" : "success",
-            "data" : book_data_values
-            #json_book_data
-        })
+            if available_param is not None:
+                book_available = book_data.filter(available=available_param)
+                book_available_values = list(book_available.values())
+                return Response({
+                    "status" : 200,
+                    "message" : "success",
+                    "Books" : book_available_values
+            })
+
+            book_data_values = list(book_data.values())
+
+            
+            #print(book_available_values)
+
+            #book_data_values = book_data.values()
+            # print(book_data)
+            #print(book_data_values)
+            # data = list(book_data)
+            # print(book_data)
+            # print(list(book_data))
+            return Response({
+                "status" : 200,
+                "message" : "success",
+                "Books" : book_data_values,
+                #"books available" : book_available_values
+            })
+        except Exception as e: 
+            return Response({
+                'status': 500,
+                'error' : e
+            })
