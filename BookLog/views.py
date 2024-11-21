@@ -24,6 +24,7 @@ class BookManagementView(APIView):
         try:
             book_name = request.data.get('book_name')
             author = request.data.get('author')
+
             book_exists = books.objects.filter(book_name=book_name, author = author)
             if book_exists:
                 return Response({
@@ -45,7 +46,7 @@ class BookManagementView(APIView):
         except Exception as e: 
             return Response({
                 'status': 500,
-                'error' : e
+                'error' : str(e)
             })
     
     def get(self,request):
@@ -64,86 +65,74 @@ class BookManagementView(APIView):
         """
         try:
             available_param = request.query_params.get('available', None)
-            book_data = books.objects.all()
-
             if available_param is not None:
-                book_available = book_data.filter(available=available_param)
-                book_available_values = list(book_available.values())
-                return Response({
-                    "status" : 200,
-                    "message" : "success",
-                    "Books" : book_available_values
-            })
+                book_data = books.objects.filter(available=available_param)
+            else:
+                book_data = books.objects.all()
 
             book_data_values = list(book_data.values())
             return Response({
                 "status" : 200,
                 "message" : "success",
-                "Books" : book_data_values,
+                "Books" : book_data_values
             })
         except Exception as e: 
             return Response({
                 'status': 500,
-                'error' : e
+                'error' : str(e)
             })
         
 class BorrowBookView(APIView):
     def post(self,request):
-
         try:
             book_id = request.data.get('book_id')
             borrower_id = request.data.get('borrower_id')
 
             borrower_status = borrowers.objects.filter(borrower_id=borrower_id)
-            borrower_details = borrower_status.first()
             book_available = books.objects.filter(book_id=book_id)
+
+            borrower_details = borrower_status.first()
             book_details = book_available.first()
-            
-            if not borrower_status: 
-                return Response({
-                    'status':404,
-                    'message':'user not found',
-                })  
-            if not book_available:
-                return Response({
-                    'status':404,
-                    'message':'Book not found',
-                }) 
-            if borrower_details.is_active == False : 
-                return Response({
-                    'status':401,
-                    'message':'User is inactive',
-                })
-            if borrower_details.active_book_count >=3: 
-                return Response({
-                    'status':403,
-                    'message':'User has already borrowed 3 books',
-                })
-            
-            if book_details.available == True:
-                loan_details = {
-                    'book': book_details,
-                    'borrower' : borrower_details,
-                    'return_status' : 'False'
-                }
-                loan_book = loan.objects.create(**loan_details)
-                loan_book.save()
 
-                borrower_status.update(active_book_count = F('active_book_count') +1)
-                book_available.update(available=False, borrow_count = F('borrow_count') +1)
+            validation_checks = [
+                (borrower_details is None, 404, 'User  not found'),
+                (book_details is None, 404, 'Book not found'),
+            ]
 
-                return Response({
-                    'status':200,
-                    'message':'Book borrowed successfully',
-                })
+            if borrower_status and book_available:
+                validation_checks_extend = [
+                (borrower_details.is_active == False, 401, 'User  is inactive'),
+                (borrower_details.active_book_count >= 3, 403, 'User  has already borrowed 3 books'),
+                (book_details.available == False, 400, 'Book not available (borrowed)')
+                ]
+                validation_checks.extend(validation_checks_extend)
+            
+            
+            for condition, status, message in validation_checks:
+                if condition:
+                    return Response({
+                        'status': status,
+                        'message': message,
+                    })
+            loan_details = {
+                'book': book_details,
+                'borrower' : borrower_details,
+                'return_status' : 'False'
+            }
+            loan_book = loan.objects.create(**loan_details)
+            loan_book.save()
+
+            borrower_status.update(active_book_count = F('active_book_count') +1)
+            book_available.update(available=False, borrow_count = F('borrow_count') +1)
+
             return Response({
-                    'status':400,
-                    'message':'Book not available (borrowed)',
-                })
+                'status':200,
+                'message':'Book borrowed successfully',
+            })
         except Exception as e:
             return Response({
                     'status':500,
-                    'error':e,
+                    'error':str(e)
                 })
             
 class ReturnBookView(APIView):
@@ -172,7 +161,7 @@ class ReturnBookView(APIView):
                 loan_details_value = loan_details.first()
                 loan_details.update(return_status = True)
                 books.objects.filter(book_id = book_id).update(available = True)
-                borrowers.objects.filter(borrower = loan_details_value.borrower_id).update(active_book_count = F('active_book_count') - 1)
+                borrowers.objects.filter(borrower_id = loan_details_value.borrower_id).update(active_book_count = F('active_book_count') - 1)
                 return Response({
                     'status':200,
                     'message':'Book returned successfully',
@@ -184,24 +173,19 @@ class ReturnBookView(APIView):
         except Exception as e:
             return Response({
                     'status':500,
-                    'error':e,
+                    'error':str(e)
                 })
         
 class ListBorrowedBookView(APIView):
     def get(self,request, borrower_id):
         """
-        POST/return/ (return a book)
+        Get/borrowed/<int:borrower_id>/ (List all active books of borrower)
+        Get/history/<int:borrower_id>/ (List all borrowed books of borrower)
 
-        It returns a book using book_id.
-        Checks if book_id is availableand return_status = False in loan table
-        if found,
-            - updating return_status = True in loan table
-            - updating availability of book in books table as True (available = True)
-            - the active_book_count is decremented by 1 in borrowers table
+        It returns borrowed book details using borrower_id.
 
         Return:
-        200: Book returned successfully
-        400: Book already returned
+        200: Active Books / All Books
 
         Exception:
         500: Exception
@@ -214,8 +198,6 @@ class ListBorrowedBookView(APIView):
             if action == 'list-all-active-book':
                 msg = "Active Books"
                 loan_details = loan_details.filter(return_status = False)
-            # sql_query = str(loan_details.query)
-            # print(sql_query)
             data = [
                     {
                         "loan_id": details.loan_id,
@@ -228,7 +210,6 @@ class ListBorrowedBookView(APIView):
                     }
                 for details in loan_details
             ]
-            
             return Response({
                     'status':200,
                     'message':msg,
@@ -237,7 +218,7 @@ class ListBorrowedBookView(APIView):
         except Exception as e:
             return Response({
                     'status':500,
-                    'error':e,
+                    'error':str(e)
                 })
         
 
