@@ -6,8 +6,8 @@ from .models import *
 from django.db.models import F
 # Create your views here.
 
-class BookManagementView(APIView):
-    def post(self,request):
+class BookManagementView(APIView): 
+    def post(self,request): # insert multiple books
         """
         POST/books/ (add new book)
 
@@ -87,36 +87,16 @@ class BookManagementView(APIView):
                 'error' : e
             })
         
-class BorrowView(APIView):
+class BorrowBookView(APIView):
     def post(self,request):
-        """
-        POST/borrow/ (borrow a book)
 
-        It borrows a book using borrower_id and book_id.
-        Checks if borrower_id is available, is_active = True and total active_book_count is >= 3
-        if book is available, it is loaned 
-            - marking available status of book in books table as 'False'
-            - the active_book_count is incremented by 1 in borrowers table
-            - the borrow_count is incremented by 1 in books table
-
-        Return:
-        404: user not found (borrower doesnot exists)
-        404: book not found (book doesnot exists)
-        401: user not found (borrower membership status is not active i.e is_active = False)
-        403: User has already borrowed 3 books
-        200: Book loaned
-        400: Book not available
-
-        Exception:
-        500: Exception
-        """
         try:
             book_id = request.data.get('book_id')
             borrower_id = request.data.get('borrower_id')
 
-            borrower_status = borrowers.objects.filter(borrower_id=borrower_id)#.values('is_active','active_book_count')
+            borrower_status = borrowers.objects.filter(borrower_id=borrower_id)
             borrower_details = borrower_status.first()
-            book_available = books.objects.filter(book_id=book_id)#.values('book_id')
+            book_available = books.objects.filter(book_id=book_id)
             book_details = book_available.first()
             
             if not borrower_status: 
@@ -166,3 +146,99 @@ class BorrowView(APIView):
                     'error':e,
                 })
             
+class ReturnBookView(APIView):
+    def post(self,request):
+        """
+        POST/return/ (return a book)
+
+        It returns a book using book_id.
+        Checks if book_id is availableand return_status = False in loan table
+        if found,
+            - updating return_status = True in loan table
+            - updating availability of book in books table as True (available = True)
+            - the active_book_count is decremented by 1 in borrowers table
+
+        Return:
+        200: Book returned successfully
+        400: Book already returned
+
+        Exception:
+        500: Exception
+        """
+        try:
+            book_id = request.data.get('book_id')
+            loan_details = loan.objects.filter(book = book_id, return_status = False)
+            if loan_details:
+                loan_details_value = loan_details.first()
+                loan_details.update(return_status = True)
+                books.objects.filter(book_id = book_id).update(available = True)
+                borrowers.objects.filter(borrower = loan_details_value.borrower_id).update(active_book_count = F('active_book_count') - 1)
+                return Response({
+                    'status':200,
+                    'message':'Book returned successfully',
+                })
+            return Response({
+                'status':400,
+                'message':'Book already returned'
+            })
+        except Exception as e:
+            return Response({
+                    'status':500,
+                    'error':e,
+                })
+        
+class ListBorrowedBookView(APIView):
+    def get(self,request, borrower_id):
+        """
+        POST/return/ (return a book)
+
+        It returns a book using book_id.
+        Checks if book_id is availableand return_status = False in loan table
+        if found,
+            - updating return_status = True in loan table
+            - updating availability of book in books table as True (available = True)
+            - the active_book_count is decremented by 1 in borrowers table
+
+        Return:
+        200: Book returned successfully
+        400: Book already returned
+
+        Exception:
+        500: Exception
+        """
+        try:
+            action = request.resolver_match.url_name
+            msg = "All Books"
+            loan_details = loan.objects.select_related('book')
+            loan_details = loan_details.filter(borrower = borrower_id)
+            if action == 'list-all-active-book':
+                msg = "Active Books"
+                loan_details = loan_details.filter(return_status = False)
+            # sql_query = str(loan_details.query)
+            # print(sql_query)
+            data = [
+                    {
+                        "loan_id": details.loan_id,
+                        "Book": {
+                            "book": details.book.book_id,
+                            "name": details.book.book_name,
+                            "author": details.book.author
+                        },
+                        "return_status": details.return_status,
+                    }
+                for details in loan_details
+            ]
+            
+            return Response({
+                    'status':200,
+                    'message':msg,
+                    'books': data
+                })
+        except Exception as e:
+            return Response({
+                    'status':500,
+                    'error':e,
+                })
+        
+
+        
