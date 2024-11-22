@@ -1,0 +1,5 @@
+Python==3.11.5
+Django==4.2
+djangorestframework-==.14.0
+python-dotenv==1.0.0
+mysqlclient==2.2.0
