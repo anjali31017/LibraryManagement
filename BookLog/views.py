@@ -84,6 +84,27 @@ class BookManagementView(APIView):
         
 class BorrowBookView(APIView):
     def post(self,request):
+        """
+        POST/borrow/ (borrow a book)
+
+        It borrows a book using book_id and borrower_id.
+        Checks if book_id is available and total count of borrowed books is >=3 in book and borrower table respectively
+        if found,
+            - updating available = False in books table
+            - the borrow_count is incremented by 1 in books table
+            - the active_book_count is incremented by 1 in borrowers table
+
+        Return:
+        404: User  not found
+        404: Book not found
+        401: User  is inactive
+        403: User  has already borrowed 3 books
+        400: Book not available (borrowed)
+        200: Book borrowed successfully
+
+        Exception:
+        500: Exception
+        """
         try:
             book_id = request.data.get('book_id')
             borrower_id = request.data.get('borrower_id')
