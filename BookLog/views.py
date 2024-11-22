@@ -195,6 +195,7 @@ class ListBorrowedBookView(APIView):
             msg = "All Books"
             loan_details = loan.objects.select_related('book')
             loan_details = loan_details.filter(borrower = borrower_id)
+            
             if action == 'list-all-active-book':
                 msg = "Active Books"
                 loan_details = loan_details.filter(return_status = False)
@@ -213,6 +214,7 @@ class ListBorrowedBookView(APIView):
             return Response({
                     'status':200,
                     'message':msg,
+                    'borrowed book count': len(loan_details),
                     'books': data
                 })
         except Exception as e:
