@@ -9,7 +9,7 @@ from django.db.models import F
 class BookManagementView(APIView): 
     def post(self,request): # insert multiple books
         """
-        POST/books/ (add new book)
+        POST/books/ (add a new book)
 
         It retrives the book name and author name, checks if data already exists.
         If no, then creates a new entry in the database marking  available = True (book is available)
@@ -167,7 +167,7 @@ class ReturnBookView(APIView):
                     'message':'Book returned successfully',
                 })
             return Response({
-                'status':400,
+                'status':409,
                 'message':'Book already returned'
             })
         except Exception as e:
